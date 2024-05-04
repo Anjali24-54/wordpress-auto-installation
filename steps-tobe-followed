@@ -1,0 +1,252 @@
+
+Automating the Installation of WordPress, Apache2, PHP, and MySQL with Dependencies
+
+Description: This project aims to automate the installation process using the configuration management tool Ansible. By doing so, we can follow a standardized installation procedure for WordPress and its components.
+
+Assuming we have already established an SSH connection with the worker machine at “192.168.1.33,” let’s proceed with the steps:
+
+1)Check Connection:
+Verify the connection with the worker machine from the master machine using the ping module:
+$ ansible 192.168.1.33 -m ping
+If the connection is successful, you’ll receive a “pong” response in the terminal.
+Create Project Directory:
+Log in to your Linux machine and access the terminal.
+2)Create a directory for your playbook:
+$ mkdir playbook-wordpress
+$ cd playbook-wordpress
+
+3)Create Playbook and Necessary Files:
+Create a playbook file (with either a .yaml or .yml extension). Let’s name it wordpress1.yaml.
+Add the following content to your playbook:
+- name: Install LAMP Stack and WordPress
+
+  hosts: 192.168.1.33
+
+  become: yes
+
+
+
+  vars_files:
+
+    - vars.yaml
+
+
+
+  tasks:
+
+    - name: Update apt cache
+
+      apt:
+
+        update_cache: yes
+
+
+
+    - name: Install required packages
+
+      apt:
+
+        name:
+
+          - apache2
+
+          - mysql-server
+
+          - php-fpm
+
+          - php-mysql
+
+          - python3-pymysql
+
+          - unzip
+
+        state: present
+
+
+
+    - name: Set MySQL root password
+
+      debconf:
+
+        name: mysql-server
+
+        question: mysql-server/root_password
+
+        value: "{{ mysql_root_password }}"
+
+        vtype: password
+
+
+
+    - name: Install WordPress
+
+      get_url:
+
+        url: "https://wordpress.org/latest.zip"
+
+        dest: "/tmp/wordpress.zip"
+
+
+
+    - name: Extract WordPress
+
+      unarchive:
+
+        src: "/tmp/wordpress.zip"
+
+        dest: "/var/www/html"
+
+        remote_src: yes
+
+      #  extra_opts: "--strip-components=1"
+
+
+
+    - name: Configure WordPress database
+
+      mysql_db:
+
+        name: wordpress
+
+        state: present
+
+        login_user: root
+
+        login_password: "{{ mysql_root_password }}"
+
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+
+    - name: Create MySQL user for WordPress
+
+      mysql_user:
+
+        name: wordpress_user
+
+        password: "{{ wordpress_db_password }}"
+
+        priv: "wordpress.*:ALL"
+
+        state: present
+
+        login_user: root
+
+        login_password: "{{ mysql_root_password }}"
+
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+
+    - name: Enable Apache rewrite module
+
+      apache2_module:
+
+        name: rewrite
+
+        state: present
+
+
+
+    - name: Create Apache VirtualHost for WordPress
+
+      template:
+
+        src: wordpress1.conf.j2
+
+        dest: /etc/apache2/sites-available/wordpress.conf
+
+      notify:
+
+        - Restart Apache
+
+
+
+    - name: Enable Apache VirtualHost for WordPress
+
+      command:
+
+        cmd: a2ensite wordpress
+
+      notify:
+
+        - Restart Apache
+
+
+
+#    - name: Disable default Apache website
+
+ #     command:
+
+  #      cmd: a2dissite 000-default.conf
+
+
+
+  handlers:
+
+    - name: Restart Apache
+
+      service:
+
+        name: apache2
+
+        state: restarted
+4) create vars.yaml file which contents your variable and password and save the file within same directory.
+ $ sudo nano vars.yaml
+ vars.yaml content:
+
+mysql_root_password: "something"
+wordpress_db_password: "something"
+
+5)encrypt the vars.yaml file.This below command execution will prompt you to set a new password.
+$ ansible-vault encrypt vars.yaml
+ type password and "press enter"
+
+
+
+6) create wordpress configuration j2 template within same directory.
+$ sudo nano wordpress1.conf.j2
+ wordpress1.conf.j2 content:
+
+  <VirtualHost *:80>
+    ServerAdmin aanzaly.12@gmail.com
+    DocumentRoot /var/www/html/wordpress/
+    ServerName 192.168.1.30
+
+    ErrorLog ${APACHE_LOG_DIR}/wordpress_error.log
+    CustomLog ${APACHE_LOG_DIR}/wordpress_access.log combined
+
+    <Directory /var/www/html/wordpress/>
+        Options FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Enable pretty permalinks
+    <Directory /var/www/html/wordpress/>
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.php$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.php [L]
+    </Directory>
+</VirtualHost>
+
+6)execute the command to check the systax and indention of the playbook.
+$ ansible-playbook --syntax-check wordpress1.yaml
+ If get error read the error and fix the error.
+7)execcute the playbook keeping in mind that this has encrypted vars.yaml file.
+$ ansible-playbook --ask-vault-pass wordpress1.yaml
+ enter your password.
+
+
+B)check wheater connection is successful or not for php,apache2,mysql and wordpress (screen shots available for all these)
+
+c)Validate installation using the public IP of VM/your-machine by accessing WordPress application
+ -Navigate to the browser and type "http://192.168.1.33/wordpress/" you will see the wordpress setup page.(screenshots available) that's it you have completed the project.
+
+
+
+
+
+
+
