@@ -1,0 +1,24 @@
+<VirtualHost *:80>
+    ServerAdmin aanzaly.12@gmail.com
+    DocumentRoot /var/www/html/wordpress/
+    ServerName 192.168.1.30
+
+    ErrorLog ${APACHE_LOG_DIR}/wordpress_error.log
+    CustomLog ${APACHE_LOG_DIR}/wordpress_access.log combined
+
+    <Directory /var/www/html/wordpress/>
+        Options FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Enable pretty permalinks
+    <Directory /var/www/html/wordpress/>
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.php$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.php [L]
+    </Directory>
+</VirtualHost>
